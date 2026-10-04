@@ -1,0 +1,17 @@
+TopTop is derived from Omarchy (https://omarchy.org/), which is
+Copyright (c) 2024 Omarchy contributors and used under the MIT licence.
+
+Two files are substantially upstream's, and carry Omarchy's copyright:
+
+  Bar.qml      $OMARCHY_PATH/shell/plugins/bar/Bar.qml
+  BarModel.js  $OMARCHY_PATH/shell/plugins/bar/BarModel.js
+
+where $OMARCHY_PATH is /usr/share/omarchy on a standard install.
+
+Every change made here is marked in Bar.qml with a comment beginning
+`nagualcode.toptop`, so the diff against a fresh upstream copy is the whole
+story:
+
+  git diff --no-index /usr/share/omarchy/shell/plugins/bar/Bar.qml Bar.qml
+
+The manifest, README, LICENSE and scripts/ are this project's own work.

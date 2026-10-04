@@ -19,21 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This plugin is derived from Omarchy (https://omarchy.org/),
-Copyright (c) 2024 Omarchy contributors, and is used under the same MIT
-license. See the upstream sources for the authoritative history:
-
-  Bar.qml                       $OMARCHY_PATH/shell/plugins/bar/Bar.qml
-  BarModel.js                   $OMARCHY_PATH/shell/plugins/bar/BarModel.js
-
-Everything in those two files is upstream's, except where a comment says
-`nagualcode.toptop`. Those comments mark every change made here, so the diff
-against a fresh upstream copy stays readable:
-
-  git diff --no-index \
-    "$OMARCHY_PATH/shell/plugins/bar/Bar.qml" Bar.qml
-
-is the whole story.
