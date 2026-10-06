@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle TopTop hover folding: on pins the notch open
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy-toggle-toptop-hover
+# omarchy:examples=omarchy-toggle-toptop-hover on
+# omarchy:examples=omarchy-toggle-toptop-hover off
+
+# TopTop folds its notch back to just the centre section when the pointer
+# leaves it. This toggles that behaviour without touching shell.json:
+#
+#   on    pin the bar open — it never shrinks again
+#   off   restore the stock hover-to-unfold behaviour
+#   (nothing)   flip whichever state it is in now
+#
+# The bar reads the `toptop-stay-open` flag through a watcher on the toggles
+# directory, so a single flip takes effect immediately. The syncHoverFold IPC
+# below covers the one case the watcher can miss — two flag changes landing
+# back to back — by asking the bar to re-read the flag.
+
+set -euo pipefail
+
+ACTION="${1:-toggle}"
+FLAG="$HOME/.local/state/omarchy/toggles/toptop-stay-open"
+
+case "$ACTION" in
+  on)
+    omarchy-toggle toptop-stay-open on
+    ;;
+  off)
+    omarchy-toggle toptop-stay-open off
+    ;;
+  toggle)
+    omarchy-toggle toptop-stay-open toggle
+    ;;
+  *)
+    echo "Usage: omarchy-toggle-toptop-hover [toggle|on|off]" >&2
+    exit 1
+    ;;
+esac
+
+# The shell's watch on the toggles directory can miss flag changes that land
+# in quick succession, leaving the bar in the old state until the shell
+# restarts. Nudge the bar to re-read the flag; quiet best-effort so the toggle
+# still works when the shell is not up.
+omarchy-shell -q omarchy.bar syncHoverFold
+
+if [[ -f "$FLAG" ]]; then
+  echo "TopTop: bar pinned open (hover folding off)"
+else
+  echo "TopTop: hover folding on"
+fi

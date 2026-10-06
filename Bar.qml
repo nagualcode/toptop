@@ -80,6 +80,11 @@ Item {
   // stationary pointer — so, exactly as upstream does for the indicator peek,
   // collapsing waits for the pointer to actually leave the notch.
   property bool notchHovered: false
+  // Mirrors the on-disk `toptop-stay-open` flag. When the flag is present the
+  // notch never folds: the bar is pinned open at full width and hover only
+  // ever leaves it alone. Updated by the same FileView watcher that feeds
+  // `barHidden`, and nudged by `bin/omarchy-toggle-toptop-hover`.
+  property bool hoverRevealEnabled: true
   // A panel can ask the bar to stop peeking while it is open (upstream calls
   // this centerHoverRevealSuppressed). Kept, because omarchy.indicators and
   // several third-party panels set it on the bar they are mounted in.
@@ -922,6 +927,9 @@ Item {
   // delays collapsing the indicator peek.
   function setNotchHovered(hovered) {
     notchHovered = hovered
+    // When the stay-open flag is set the notch folds for no one: keep the bar
+    // fully open and let hover lead nowhere.
+    if (!root.hoverRevealEnabled) return
     if (hovered) {
       collapseTimer.stop()
       reveal = 1
@@ -939,6 +947,7 @@ Item {
   function setCenterHoverRevealSuppressed(value) {
     centerHoverRevealSuppressed = !!value
     if (centerHoverRevealSuppressed) reveal = 1
+    else if (!root.hoverRevealEnabled) reveal = 1
     else if (!notchHovered) collapseTimer.restart()
   }
 
@@ -955,13 +964,36 @@ Item {
     // Collapse only. Unfolding is the notch's own gesture, done in
     // setNotchHovered, so a timer left pending by a pointer that dipped off the
     // bar and came back cannot unfold a notch it never pointed at.
-    onTriggered: if (!root.notchHovered) root.reveal = 0
+    onTriggered: if (root.hoverRevealEnabled && !root.notchHovered) root.reveal = 0
   }
 
   function run(command) {
     if (!command) return
 
     Util.execDetached(command)
+  }
+
+  // nagualcode.toptop: where this plugin is installed, worked out from this
+  // file's own location rather than an assumed $OMARCHY_PATH, so the widget
+  // menu keeps working from a clone, a dev link, or a moved plugin directory.
+  readonly property string pluginDir: {
+    var dir = String(Qt.resolvedUrl("./"))
+    return dir.indexOf("file://") === 0 ? dir.slice(7) : dir
+  }
+
+  // Single-quote for the login shell `run` hands the command to. The only thing
+  // quoted is a path we chose ourselves, but a plugin directory is a place a
+  // space can still turn up in.
+  function shellQuote(value) {
+    return "'" + String(value).replace(/'/g, "'\\''") + "'"
+  }
+
+  // Right-clicking the notch opens the installed-widgets menu. Run through
+  // `bash` rather than executed directly so a lost executable bit (a copy, a
+  // zip, a git checkout on a filesystem that dropped the mode) cannot leave the
+  // button doing nothing at all.
+  function manageWidgets() {
+    run("bash " + shellQuote(pluginDir + "bin/omarchy-toptop-widgets"))
   }
 
   function toggleTransparency() {
@@ -1291,11 +1323,29 @@ Item {
     command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/bar-off ]] && echo yes || echo no"]
     stdout: SplitParser { onRead: function(line) { root.barHidden = String(line).trim() === "yes" } }
   }
+  // Presence of the `toptop-stay-open` flag = the notch must never fold. The
+  // probe is deliberately inverted like `bar-off` reads: no flag is the stock
+  // hover-to-unfold behaviour, a flag pins the bar open.
+  Process {
+    id: hoverRevealProbe
+    running: true
+    command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/toptop-stay-open ]] && echo no || echo yes"]
+    stdout: SplitParser { onRead: function(line) {
+      root.hoverRevealEnabled = String(line).trim() === "yes"
+      if (!root.hoverRevealEnabled) {
+        root.collapseTimer.stop()
+        root.reveal = 1
+      }
+    } }
+  }
   FileView {
     path: root.home + "/.local/state/omarchy/toggles"
     watchChanges: true
     printErrors: false
-    onFileChanged: barHiddenProbe.running = true
+    onFileChanged: {
+      barHiddenProbe.running = true
+      hoverRevealProbe.running = true
+    }
   }
 
   // The directory watch can permanently stop delivering events after flag
@@ -1310,6 +1360,10 @@ Item {
     // killing it here can swallow the result entirely.
     function syncHidden(): void {
       barHiddenProbe.running = true
+    }
+    // The stay-open toggle nudges the same directory watch may have missed.
+    function syncHoverFold(): void {
+      hoverRevealProbe.running = true
     }
   }
 
@@ -1737,12 +1791,16 @@ Item {
 
     width: Math.max(0, Math.round(naturalWidth * share))
     height: root.barSize
-    visible: width > 0
-    // Only while the reveal is in flight. At rest the two ends coincide, and
-    // clipping then would cost a render target per run for nothing. `visible`
-    // already keeps a collapsed run out of the row's implicit width, so the two
-    // cannot disagree about how wide the notch is.
-    clip: share > 0 && share < 1
+    // Deliberately never `visible: width > 0`. A run's width is derived from
+    // its widgets, and QQuickItem reports *effective* visibility for an item
+    // that declares no `visible` binding of its own. Hiding a collapsed run
+    // therefore made every widget inside it read `visible === false`, which
+    // zeroed the implicit widths that compute this width, which kept the run
+    // hidden: the notch measured nothing but its end padding and drew as a
+    // bare dot. Collapse through width and opacity instead, and clip whenever
+    // the two ends do not coincide so a collapsed run neither paints nor takes
+    // pointer input.
+    clip: share < 1
     opacity: share
 
     Row {
@@ -1774,17 +1832,28 @@ Item {
   // toggle transparency. A notch has no other edge, so only the double-click
   // survives.
   //
+  // Right-click is spare, and is how the installed-widgets menu is reached. It
+  // is handled here rather than per widget so that it answers on empty notch
+  // space and on an icon alike.
+  //
   // It fills the notch and is declared before the groups, so it sits behind
   // them: a click on an icon stays that icon's, and only a click on genuinely
   // empty notch space arrives here.
   component NotchGestureArea: MouseArea {
-    acceptedButtons: Qt.LeftButton
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
 
     onDoubleClicked: function(mouse) {
       if (mouse.button === Qt.LeftButton) {
         root.toggleTransparency()
         mouse.accepted = true
       }
+    }
+
+    onPressed: function(mouse) {
+      if (mouse.button !== Qt.RightButton) return
+
+      root.manageWidgets()
+      mouse.accepted = true
     }
   }
 
@@ -2020,8 +2089,18 @@ Item {
     function injectProps() {
       var target = activeItem
       if (!target) return
-      if ("bar" in target) target.bar = firstParty
-        ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
+
+      // Assigning the host is the one step here that can come back empty: a
+      // third-party widget whose plugin is not in the registry has no API
+      // object, and a slot can also be torn down between the change being
+      // queued (Qt.callLater) and this running, by which point `root` is gone.
+      // The bare assignment threw on undefined, which not only lost the host
+      // but aborted the rest of the function, so moduleName and settings went
+      // uninjected too. Fail this one step and carry on with the others.
+      if ("bar" in target && root) {
+        var api = firstParty ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
+        if (api) target.bar = api
+      }
       if ("moduleName" in target) target.moduleName = moduleName
       if ("settings" in target) target.settings = moduleSettings
     }

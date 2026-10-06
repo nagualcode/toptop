@@ -34,9 +34,20 @@ need() {
 # the copy finishes — which is a miserable thing to debug. Staging the tree and
 # swapping it in with a rename means the only thing the watcher can see is a
 # whole plugin.
+#
+# The staging and previous trees deliberately sit beside the plugin directory
+# rather than inside it. Anything holding a manifest.json in the watched
+# directory is a plugin as far as the shell is concerned, so a
+# `nagualcode.toptop.staging.1234` sitting next to the real one gets loaded as
+# a second, broken plugin and makes the shell reload everything twice. Beside
+# is also the same filesystem, which is what keeps the swap a rename.
 copy_plugin_tree() {
   local source="$1" target="$2"
-  local staging="${target}.staging.$$" previous="${target}.old.$$"
+  local staging previous
+
+  rm -rf "$target.staging."* "$target.old."* 2>/dev/null || true
+  staging="$(dirname "$target")/.$(basename "$target").staging.$$"
+  previous="$(dirname "$target")/.$(basename "$target").previous.$$"
 
   rm -rf "$staging" "$previous"
   mkdir -p "$staging"
@@ -46,7 +57,10 @@ copy_plugin_tree() {
   fi
 
   if [[ -e "$target" || -L "$target" ]]; then
-    mv "$target" "$previous" || { rm -rf "$staging"; return 1; }
+    if ! mv "$target" "$previous"; then
+      rm -rf "$staging"
+      return 1
+    fi
   fi
   if ! mv "$staging" "$target"; then
     # Put the working copy back rather than leaving no plugin at all.

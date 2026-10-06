@@ -165,6 +165,8 @@ TopTop is now the bar.
   Left-drag an icon    move it; icons in the centre are the ones that stay
                        visible when the notch is folded
   Double-click the notch   toggle transparency
+  Right-click the notch    list the installed bar widgets, and move, remove or
+                       uninstall the one you pick
 
 The notch reserves no screen space, so windows use the full height of the screen
 and the notch is drawn over them. Nothing is pinned implicitly: the folded notch

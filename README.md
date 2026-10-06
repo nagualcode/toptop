@@ -90,6 +90,20 @@ sideways; leaving starts a short timer, and if the pointer has not come back by
 the time it fires, the notch folds again. Moving between icons never re-triggers
 the collapse, because the pointer stays inside the notch the whole time.
 
+**You can pin it open.** If you would rather the notch never shrinks, keep it
+fully unfolded:
+
+```bash
+omarchy-toggle-toptop-hover on      # pin open — the bar stops folding
+omarchy-toggle-toptop-hover off     # restore hover-to-unfold
+omarchy-toggle-toptop-hover         # flip whichever state it is in
+```
+
+`on` writes the `toptop-stay-open` flag under `~/.local/state/omarchy/toggles/`
+(remove the flag to fold again), and the bar picks the change up immediately,
+with no restart and no `shell.json` edit. The default is hover-to-unfold;
+nothing is written unless you toggle it.
+
 **Widget order is layout order.** Left section, centre section, right section,
 read left to right. TopTop does not reorder or drop anything, so your existing
 `bar.layout` means exactly what it means for the stock bar.
@@ -99,6 +113,15 @@ stock bar. Dragging the bar itself to another screen edge is gone: a notch has
 nowhere else to go, and `position` is pinned to `top`.
 
 **Double-clicking the notch toggles transparency**, also inherited from upstream.
+
+**Right-clicking the notch manages the bar's widgets.** It lists every installed
+bar widget with the section it currently sits in, and the one you pick can be
+moved to another section, taken off the bar (disabled — and re-addable from the
+same menu) or, for a third-party widget, uninstalled outright. It is a thin
+front-end over `omarchy bar move`, `omarchy plugin enable` and
+`omarchy plugin disable`, run as `bin/omarchy-toptop-widgets`, so what the menu
+reports is what the shell will actually do. Browsing and installing *plugins*
+is not part of it — that is `omarchy plugin add`.
 
 ## Configuration
 

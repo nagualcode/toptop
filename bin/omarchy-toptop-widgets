@@ -1,0 +1,117 @@
+#!/bin/bash
+
+# omarchy:summary=Manage the bar widgets installed in TopTop
+
+# A front-end over Omarchy's own CLI, in the same `omarchy-menu-select` picker
+# style as `omarchy menu plugin`: every installed bar widget is listed with the
+# section it sits in, and the one you pick can be moved to another section,
+# taken off the bar (disabled, and reversible from this same menu) or — for a
+# third-party widget — uninstalled outright.
+#
+# Nothing here knows how a widget works; the menu is a front-end over
+# `omarchy bar move`, `omarchy plugin enable` and `omarchy plugin disable`, so
+# what it reports is exactly what the shell will do.
+#
+# Ported from jim.widget-controller, which opens a top-level choice between this
+# and a plugin marketplace. The marketplace half is deliberately not carried
+# over — browsing and installing plugins is `omarchy plugin add`'s job, and this
+# menu goes straight to the installed list.
+#
+# Reach it by right-clicking the TopTop notch.
+
+set -euo pipefail
+
+WIDGET_ICON=$'\U000f0431'
+
+# shell.json, with the stock defaults standing in for a machine that has none.
+# Sourced rather than hardcoded so the menu reads the same file `omarchy bar`
+# edits; falling back keeps the script working if that helper is not on PATH.
+if ! source omarchy-shell-config 2>/dev/null; then
+  CONFIG_FILE="$HOME/.config/omarchy/shell.json"
+fi
+
+notify() { omarchy-notification-send "$1" "${2:-}"; }
+
+shell_config() {
+  if declare -F source_file >/dev/null 2>&1; then
+    source_file
+  else
+    printf '%s\n' "$CONFIG_FILE"
+  fi
+}
+
+# widget id -> the section it currently sits in, so the list can show it.
+widget_section_map() {
+  jq -c '
+    (.bar.layout // {}) as $l
+    | reduce (["left","center","right"][]) as $sec
+        ({}; . + (reduce (($l[$sec] // [])[]) as $w (.; .[$w.id] = $sec)))
+  ' "$(shell_config)" 2>/dev/null || echo '{}'
+}
+
+installed_widgets_menu() {
+  local plugins sections rows selection id
+  plugins=$(omarchy-plugin-list --json) || return 0
+  sections=$(widget_section_map)
+
+  # A plugin that is also a bar is left out: `omarchy plugin enable` swaps
+  # `bar.id` for those instead of placing them on the bar, so offering to move
+  # or remove one as a widget would only misdescribe what happens.
+  rows=$(jq -r --arg icon "$WIDGET_ICON" --argjson sections "$sections" '
+    .[] | select(.kinds | index("bar-widget"))
+    | select((.kinds | index("bar")) | not)
+    | ($sections[.id] // "off") as $where
+    | $icon + "\t" + .name + "  [" + (if .enabled then $where else "disabled" end) + "]" + "\t" + .id
+  ' <<<"$plugins")
+
+  [[ -n $rows ]] || { notify "No bar widgets installed"; return 0; }
+
+  selection=$(omarchy-menu-select "Installed Widgets" <<<"$rows") || return 0
+  [[ -n $selection ]] || return 0
+  id=$(cut -f2 <<<"$selection")
+  [[ -n $id ]] || return 1
+
+  widget_action_menu "$id"
+}
+
+widget_action_menu() {
+  local id="$1" info enabled first_party options=() action section
+  info=$(omarchy-plugin-list --json | jq -c --arg id "$id" 'map(select(.id==$id))[0]')
+  enabled=$(jq -r '.enabled' <<<"$info")
+  first_party=$(jq -r '.firstParty' <<<"$info")
+
+  if [[ $enabled == "true" ]]; then
+    options+=("Move to a different section")
+    options+=("Remove from taskbar")
+  else
+    options+=("Add to taskbar")
+  fi
+  [[ $first_party == "false" ]] && options+=("Uninstall completely")
+
+  action=$(omarchy-menu-select "$id" "${options[@]}") || return 0
+  [[ -n $action ]] || return 0
+
+  case "$action" in
+    "Move to a different section")
+      section=$(omarchy-menu-select "Move $id to" Left Center Right) || return 0
+      [[ -n $section ]] || return 0
+      omarchy-bar move "$id" --section "${section,,}"
+      notify "Moved" "$id -> ${section,,}"
+      ;;
+    "Remove from taskbar")
+      omarchy-plugin-disable "$id"
+      notify "Removed from taskbar" "$id (still installed — re-add it any time)"
+      ;;
+    "Add to taskbar")
+      section=$(omarchy-menu-select "Add $id to" Left Center Right) || return 0
+      [[ -n $section ]] || return 0
+      omarchy-plugin-enable "$id" --section "${section,,}"
+      notify "Added to taskbar" "$id -> ${section,,}"
+      ;;
+    "Uninstall completely")
+      omarchy-launch-floating-terminal-with-presentation "omarchy plugin remove $(printf '%q' "$id")"
+      ;;
+  esac
+}
+
+installed_widgets_menu
