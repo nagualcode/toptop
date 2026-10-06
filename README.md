@@ -94,12 +94,12 @@ the collapse, because the pointer stays inside the notch the whole time.
 fully unfolded:
 
 ```bash
-omarchy-toggle-toptop-hover on      # pin open — the bar stops folding
-omarchy-toggle-toptop-hover off     # restore hover-to-unfold
+omarchy-toggle-toptop-hover off     # folding off — the bar stays fully open
+omarchy-toggle-toptop-hover on      # folding on (default) — hover unfolds it
 omarchy-toggle-toptop-hover         # flip whichever state it is in
 ```
 
-`on` writes the `toptop-stay-open` flag under `~/.local/state/omarchy/toggles/`
+`off` writes the `toptop-stay-open` flag under `~/.local/state/omarchy/toggles/`
 (remove the flag to fold again), and the bar picks the change up immediately,
 with no restart and no `shell.json` edit. The default is hover-to-unfold;
 nothing is written unless you toggle it.

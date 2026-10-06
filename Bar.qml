@@ -85,6 +85,15 @@ Item {
   // ever leaves it alone. Updated by the same FileView watcher that feeds
   // `barHidden`, and nudged by `bin/omarchy-toggle-toptop-hover`.
   property bool hoverRevealEnabled: true
+  // Folding-off means the notch must sit at full width no matter what the
+  // pointer is doing. Run through a root function: `collapseTimer` is an id, not
+  // a property, so calling `root.collapseTimer` from a nested scope reads
+  // undefined and the guard below would abort before `reveal` is ever set.
+  function forceOpen() {
+    collapseTimer.stop()
+    reveal = 1
+  }
+  onHoverRevealEnabledChanged: if (!root.hoverRevealEnabled) root.forceOpen()
   // A panel can ask the bar to stop peeking while it is open (upstream calls
   // this centerHoverRevealSuppressed). Kept, because omarchy.indicators and
   // several third-party panels set it on the bar they are mounted in.
@@ -1332,10 +1341,7 @@ Item {
     command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/toptop-stay-open ]] && echo no || echo yes"]
     stdout: SplitParser { onRead: function(line) {
       root.hoverRevealEnabled = String(line).trim() === "yes"
-      if (!root.hoverRevealEnabled) {
-        root.collapseTimer.stop()
-        root.reveal = 1
-      }
+      if (!root.hoverRevealEnabled) root.forceOpen()
     } }
   }
   FileView {
@@ -1364,6 +1370,16 @@ Item {
     // The stay-open toggle nudges the same directory watch may have missed.
     function syncHoverFold(): void {
       hoverRevealProbe.running = true
+    }
+    // Diagnostic for verifying the fold logic over IPC without looking at the
+    // screen: reveal is what the notch width keys off (1 = full width).
+    function foldState(): string {
+      return JSON.stringify({
+        reveal: root.reveal,
+        hoverRevealEnabled: root.hoverRevealEnabled,
+        notchHovered: root.notchHovered,
+        centerHoverRevealSuppressed: root.centerHoverRevealSuppressed
+      })
     }
   }
 

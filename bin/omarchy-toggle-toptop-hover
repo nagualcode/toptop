@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# omarchy:summary=Toggle TopTop hover folding: on pins the notch open
+# omarchy:summary=Toggle TopTop folding: off keeps the notch pinned open
 # omarchy:args=[toggle|on|off]
 # omarchy:examples=omarchy-toggle-toptop-hover
-# omarchy:examples=omarchy-toggle-toptop-hover on
 # omarchy:examples=omarchy-toggle-toptop-hover off
+# omarchy:examples=omarchy-toggle-toptop-hover on
 
 # TopTop folds its notch back to just the centre section when the pointer
 # leaves it. This toggles that behaviour without touching shell.json:
 #
-#   on    pin the bar open — it never shrinks again
-#   off   restore the stock hover-to-unfold behaviour
+#   off   folding off — the bar is pinned open and never shrinks again
+#   on    folding on (the default) — hover unfolds it again
 #   (nothing)   flip whichever state it is in now
 #
 # The bar reads the `toptop-stay-open` flag through a watcher on the toggles
@@ -25,10 +25,10 @@ FLAG="$HOME/.local/state/omarchy/toggles/toptop-stay-open"
 
 case "$ACTION" in
   on)
-    omarchy-toggle toptop-stay-open on
+    omarchy-toggle toptop-stay-open off
     ;;
   off)
-    omarchy-toggle toptop-stay-open off
+    omarchy-toggle toptop-stay-open on
     ;;
   toggle)
     omarchy-toggle toptop-stay-open toggle
@@ -46,7 +46,7 @@ esac
 omarchy-shell -q omarchy.bar syncHoverFold
 
 if [[ -f "$FLAG" ]]; then
-  echo "TopTop: bar pinned open (hover folding off)"
+  echo "TopTop: folding off — the notch stays at full width"
 else
-  echo "TopTop: hover folding on"
+  echo "TopTop: folding on — hover unfolds the notch"
 fi
